@@ -1,8 +1,7 @@
 import express from "express";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
-import { commands } from "./commands/index.js";
-import { sendMessage } from "./utils/sendMessage.js";
+import { handleMessage } from "./handlers/messageHandler.js";
 
 dotenv.config();
 const app = express();
@@ -32,24 +31,9 @@ app.post("/webhook", async (req, res) => {
     for (const entry of body.entry) {
       const webhook_event = entry.messaging[0];
       const sender_psid = webhook_event.sender.id;
+      const message = webhook_event.message?.text;
 
-      if (webhook_event.message && webhook_event.message.text) {
-        const userMsg = webhook_event.message.text.trim();
-        console.log("📩 Received:", userMsg);
-
-        if (userMsg.startsWith("/")) {
-          const command = userMsg.split(" ")[0].toLowerCase();
-          const handler = commands[command];
-
-          if (handler) {
-            await handler(sender_psid);
-          } else {
-            await sendMessage(sender_psid, "❓ Unknown command. Try /help");
-          }
-        } else {
-          await sendMessage(sender_psid, "🤖 I only respond to commands. Type /help.");
-        }
-      }
+      if (message) await handleMessage(sender_psid, message);
     }
     res.status(200).send("EVENT_RECEIVED");
   } else {
