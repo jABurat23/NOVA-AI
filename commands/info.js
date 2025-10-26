@@ -10,7 +10,7 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 
 // Assign each user their own emoji badge 🪪
 const userEmojis = {
-  "your_facebook_user_id_here": "👑", // YOU (owner)
+  "24652080214463042": "👑", // YOU (owner)
   "default": "👤", // everyone else
 };
 

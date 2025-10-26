@@ -1,42 +1,61 @@
-// handlers/messageHandler.js
-import { sendMessage } from "../utils/sendMessage.js";
-import { commands } from "../commands/index.js";
-import { handleDynamicCommand } from "../services/dynamicCommandService.js";
-import { authorize } from "../middlewares/authMiddleware.js";
-import { updateSession } from "../services/sessionService.js";
+import axios from "axios";
+import { logConversation } from "../services/conversationLogger.js";
 
-export async function handleMessage(sender_psid, message) {
+// ✅ Replace this with your bot's response logic
+async function getBotResponse(userMessage) {
+  // Here you can connect to OpenAI, Dialogflow, or your custom logic
+  // For now, it just echoes the message with a friendly response
+  return `You said: "${userMessage}". That's interesting! 😊`;
+}
+
+/**
+ * Handles messages events from Messenger
+ * @param {Object} event - The incoming webhook event
+ */
+export async function handleMessage(event) {
   try {
-    const userMsg = message.trim();
-    console.log(`📨 Message from ${sender_psid}: ${userMsg}`);
+    const sender_psid = event.sender.id;
+    const received_message = event.message?.text;
 
-    // Track chat session
-    updateSession(sender_psid, { lastMessage: userMsg });
+    if (!received_message) return;
 
-    if (userMsg.startsWith("/")) {
-      const args = userMsg.split(" ");
-      const command = args[0].toLowerCase();
+    console.log(`📩 Message received from ${sender_psid}: ${received_message}`);
 
-      // Check for registered commands
-      if (commands[command]) {
-        const allowed = await authorize(sender_psid, command);
-        if (!allowed) {
-          return await sendMessage(sender_psid, "🚫 You’re not authorized to use this command.");
-        }
-        await commands[command](sender_psid, args);
-      } else {
-        // Try dynamically added commands
-        const handled = await handleDynamicCommand(sender_psid, command);
-        if (!handled) {
-          await sendMessage(sender_psid, "❓ Unknown command. Type /help for a list.");
-        }
-      }
-    } else {
-      // Normal conversation handling (no commands)
-      await sendMessage(sender_psid, "🤖 I only respond to commands. Type /help to see options.");
-    }
+    // ✅ Log user message
+    logConversation(sender_psid, received_message, "user");
+
+    // ✅ Generate bot response
+    const botResponse = await getBotResponse(received_message);
+
+    // ✅ Send response back to Messenger
+    await callSendAPI(sender_psid, botResponse);
+
+    // ✅ Log bot response
+    logConversation(sender_psid, botResponse, "bot");
+
   } catch (error) {
     console.error("❌ Error handling message:", error.message);
-    await sendMessage(sender_psid, "⚠️ Something went wrong while processing your message.");
+  }
+}
+
+/**
+ * Sends messages via the Send API to Messenger
+ */
+async function callSendAPI(sender_psid, responseText) {
+  const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+
+  const requestBody = {
+    recipient: { id: sender_psid },
+    message: { text: responseText },
+  };
+
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`,
+      requestBody
+    );
+    console.log(`✅ Message sent to ${sender_psid}: ${responseText}`);
+  } catch (err) {
+    console.error("❌ Unable to send message:", err.response?.data || err.message);
   }
 }
